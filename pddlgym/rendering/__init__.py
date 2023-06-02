@@ -1,6 +1,7 @@
 from .minecraft import render as minecraft_render
 from .rearrangement import render as rearrangement_render
 from .sokoban import render as sokoban_render
+from .sokoban_ma import render as sokoban_ma_render
 from .hanoi import render as hanoi_render
 from .blocks import render as blocks_render
 from .explodingblocks import render as exploding_blocks_render
@@ -17,4 +18,3 @@ from .sar_render_from_string_grid import sar_render_from_string_grid
 from .hiking import render as hiking_render
 from .maze import render as maze_render
 from .navigation import render as navigation_render
-from .visit_all import render as visit_all_render

@@ -23,6 +23,8 @@ def register_pddl_env(name, is_test_env, other_args):
     domain_file = os.path.join(dir_path, "{}.pddl".format(name.lower()))
     gym_name = name.capitalize()
     problem_dirname = name.lower()
+    # if name == "sokoban_ma":
+    #     import pdb; pdb.set_trace()
     if is_test_env:
         gym_name += 'Test'
         problem_dirname += '_test'
@@ -48,6 +50,7 @@ for env_name, kwargs in [
                                    'dynamic_action_space' : False}),
         ("rearrangement", {'render' : rearrangement_render}),
         ("sokoban", {'render' : sokoban_render}),
+        ("sokoban_ma", {'render' : sokoban_ma_render}),
         ("minecraft", {'render' : minecraft_render}),
         ("depot", {'operators_as_actions' : True,
                    'dynamic_action_space' : True}),
@@ -166,9 +169,6 @@ for env_name, kwargs in [
         ("navigation8", { 'render': lambda obs: navigation_render(obs, make("PDDLEnvNavigation8-v0").domain) }),
         ("navigation9", { 'render': lambda obs: navigation_render(obs, make("PDDLEnvNavigation9-v0").domain) }),
         ("navigation10", { 'render': lambda obs: navigation_render(obs, make("PDDLEnvNavigation10-v0").domain) }),
-        ("visit_all", {'render' : visit_all_render,
-                       'operators_as_actions': True,
-                       'dynamic_action_space': True}),
 ]:
     other_args = {
         "raise_error_on_invalid_action": False,

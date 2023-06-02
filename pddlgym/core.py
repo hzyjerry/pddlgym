@@ -97,19 +97,29 @@ def _select_operator(state, action, domain, inference_mode="infer",
     if inference_mode == "infer":
         inference_mode = "csp" if _check_domain_for_strips(domain) else "prolog"
 
-    if domain.operators_as_actions:
-        # There should be only one possible operator if actions are operators
-        possible_operators = set()
-        for name, operator in domain.operators.items():
-            if name.lower() == action.predicate.name.lower():
-                assert len(possible_operators) == 0
-                possible_operators.add(operator)
-    else:
-        # Possibly multiple operators per action
-        possible_operators = set(domain.operators.values())
+    single_agent = type(action) == Literal
 
-    # Knowledge base: literals in the state + action taken
-    kb = set(state.literals) | {action}
+    # Single agent
+    if single_agent:
+        if domain.operators_as_actions:
+            # There should be only one possible operator if actions are operators
+            possible_operators = set()
+            for name, operator in domain.operators.items():
+                if name.lower() == action.predicate.name.lower():
+                    assert len(possible_operators) == 0
+                    possible_operators.add(operator)
+        else:
+            # Possibly multiple operators per action
+            possible_operators = set(domain.operators.values())
+
+        # Knowledge base: literals in the state + action taken
+        kb = set(state.literals) | {action}
+
+    else: # Multiagent
+        possible_operators = set(domain.operators.values())
+        # Knowledge base: literals in the state + action taken
+        kb = set(state.literals) | set(action.literals)
+
 
     selected_operator = None
     assignment = None
@@ -119,33 +129,98 @@ def _select_operator(state, action, domain, inference_mode="infer",
         else:
             conds = operator.preconds.literals
         # Necessary for binding the operator arguments to the variables
-        if domain.operators_as_actions:
+        if type(action) == Literal and domain.operators_as_actions:
             conds = [action.predicate(*operator.params)] + conds
+
         # Check whether action is in the preconditions
-        action_literal = None
-        for lit in conds: 
-            if lit.predicate == action.predicate:
-                action_literal = lit
-                break
-        if action_literal is None:
-            continue
-        # For proving, consider action variable first
-        action_variables = action_literal.variables
-        variable_sort_fn = lambda v : (not v in action_variables, v)
-        assignments = find_satisfying_assignments(kb, conds,
-            variable_sort_fn=variable_sort_fn,
-            type_to_parent_types=domain.type_to_parent_types,
-            constants=domain.constants,
-            mode=inference_mode)
+        def _filter_by_action_predicate(inputs, predicate):
+            action
+            operator
+            action_literal = None
+            for lit in conds: 
+                if lit.predicate == predicate:
+                    action_literal = lit
+                    break
+            action_variables = action_literal.variables
+            # variable_sort_fn = lambda v : (not v in action_variables, v)
+            def variable_sort_fn(v):
+                return (not v in action_variables, v)
+            outputs = find_satisfying_assignments(inputs, conds,
+                variable_sort_fn=variable_sort_fn,
+                type_to_parent_types=domain.type_to_parent_types,
+                max_assignment_count=999,
+                constants=domain.constants,
+                mode=inference_mode)
+            return outputs
+
+        # Handle literal conjunctions
+        if single_agent:
+            assignments = _filter_by_action_predicate(kb, action.predicate)
+        else:
+            if len(action.literals) == 1:
+                return _filter_by_action_predicate(kb, action.literals[0].predicate)
+
+            # There are multiple literals, we need to find the 1 assignment(s) jointly selected by all literals
+            all_lit_assignments = []
+            for act_lit in action.literals:
+                all_lit_assignments.append(_filter_by_action_predicate(kb, act_lit.predicate))
+            assignments = []
+            for temp_assign in all_lit_assignments[0]:
+                all_selected = False # assign selected by all literals
+                for next_lit_assignments in all_lit_assignments[1:]:
+                    if temp_assign in next_lit_assignments:
+                        all_selected = True
+                if all_selected:
+                    assignments.append(temp_assign)
+        # Ensure that assignment satisfy literals
+        def _filter_by_action_variables(assignments, literals):
+            out_assignments = []
+            for assign in assignments:
+                satisfied = True
+                for lit in literals:
+                    # TODO: currently only move(xxx) or is-plauer(xxx), what if length > 1
+                    for v in lit.variables:
+                        if v not in assign.values():
+                            satisfied = False
+                if satisfied:
+                    out_assignments.append(assign)
+            return out_assignments
+
         num_assignments = len(assignments)
+        if single_agent: # action is a literal
+            assignments = _filter_by_action_variables(assignments, [action])
+        else:
+            assignments = _filter_by_action_variables(assignments, action.literals)
+        num_assignments = len(assignments)
+
         if num_assignments > 0:
             if require_unique_assignment:
                 assert num_assignments == 1, "Nondeterministic envs not supported"
             selected_operator = operator
             assignment = assignments[0]
             break
-
+            
+    if assignment is None:
+        import pdb; pdb.set_trace()
     return selected_operator, assignment
+
+def _check_all_action_variables(assignments, action):
+    """
+    In multi-agent case, ensure that we only assign the agent specified by the action
+    """
+    out_assignments = []
+    for assign in assignments:
+        select = True
+        for act_var in action.variables:
+            at_least_one_satisfy = False
+            for assign_key, assign_var in assign.items():
+                if assign_var.var_type == act_var.var_type and assign_var.name == act_var.name:
+                    at_least_one_satisfy = True
+            select = select and at_least_one_satisfy
+        if select:
+            out_assignments.append(assign)
+    return out_assignments
+
 
 def _check_domain_for_strips(domain):
     """
@@ -303,6 +378,7 @@ class PDDLEnv(gym.Env):
         include only valid actions (must match operator preconditions).
     """
     def __init__(self, domain_file, problem_dir, render=None, seed=0,
+                 handle_derived_literals=True,
                  raise_error_on_invalid_action=False,
                  operators_as_actions=False,
                  dynamic_action_space=False):
@@ -313,6 +389,7 @@ class PDDLEnv(gym.Env):
         self.seed(seed)
         self._raise_error_on_invalid_action = raise_error_on_invalid_action
         self.operators_as_actions = operators_as_actions
+        self.handle_derived_literals = handle_derived_literals
 
         # Set by self.fix_problem_index
         self._problem_index_fixed = False
@@ -488,7 +565,8 @@ class PDDLEnv(gym.Env):
         return state, reward, done, debug_info
 
     def _get_new_state_info(self, state):
-        state = self._handle_derived_literals(state)
+        if self.handle_derived_literals:
+            state = self._handle_derived_literals(state)
 
         done = self._is_goal_reached(state)
 
@@ -548,6 +626,7 @@ class PDDLEnv(gym.Env):
 
     def _handle_derived_literals(self, state):
         # first remove any old derived literals since they're outdated
+
         to_remove = set()
         for lit in state.literals:
             if lit.predicate.is_derived:
@@ -560,7 +639,8 @@ class PDDLEnv(gym.Env):
         for lit in all_ground_literals:
             if not lit.predicate.is_derived and lit not in state_literals:
                 state_literals = {lit.negative} | state_literals
-                
+        
+
         while True:  # loop, because derived predicates can be recursive
             new_derived_literals = set()
             for pred in self.domain.predicates.values():
@@ -585,4 +665,6 @@ class PDDLEnv(gym.Env):
                 state = state.with_literals(state.literals | new_derived_literals)
             else:  # terminate
                 break
+
+
         return state
