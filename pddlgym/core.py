@@ -27,7 +27,7 @@ import os
 from itertools import product
 
 import gym
-
+import time
 import numpy as np
 
 
@@ -200,8 +200,8 @@ def _select_operator(state, action, domain, inference_mode="infer",
             assignment = assignments[0]
             break
             
-    if assignment is None:
-        import pdb; pdb.set_trace()
+    # if assignment is None:
+    #     import pdb; pdb.set_trace()
     return selected_operator, assignment
 
 def _check_all_action_variables(assignments, action):
@@ -381,7 +381,8 @@ class PDDLEnv(gym.Env):
                  handle_derived_literals=True,
                  raise_error_on_invalid_action=False,
                  operators_as_actions=False,
-                 dynamic_action_space=False):
+                 dynamic_action_space=False,
+                 max_timestep=-1):
         self._state = None
         self._domain_file = domain_file
         self._problem_dir = problem_dir
@@ -395,6 +396,7 @@ class PDDLEnv(gym.Env):
         self._problem_index_fixed = False
 
         self._problem_idx = None
+        self._max_timestep = max_timestep
 
         # Parse the PDDL files
         self.domain, self.problems = self.load_pddl(domain_file, problem_dir,
@@ -468,6 +470,11 @@ class PDDLEnv(gym.Env):
     def action_space(self):
         return self._action_space
 
+    @property
+    def problem_idx(self):
+        return self._problem_idx
+    
+
     def set_state(self, state):
         self._state = state
 
@@ -514,12 +521,14 @@ class PDDLEnv(gym.Env):
         initial_state = State(frozenset(self._problem.initial_state),
                               frozenset(self._problem.objects),
                               self._problem.goal)
-        initial_state = self._handle_derived_literals(initial_state)
+        if self.handle_derived_literals:
+            initial_state = self._handle_derived_literals(initial_state)
         self.set_state(initial_state)
 
         self._goal = self._problem.goal
         debug_info = self._get_debug_info()
 
+        self._timestep = 0
         self._action_space.reset_initial_state(initial_state)
 
         return self.get_state(), debug_info
@@ -562,6 +571,9 @@ class PDDLEnv(gym.Env):
         """
         state, reward, done, debug_info = self.sample_transition(action)
         self.set_state(state)
+        self._timestep += 1
+        if self._max_timestep > 0:
+            done = done or self._timestep >= self._max_timestep
         return state, reward, done, debug_info
 
     def _get_new_state_info(self, state):
