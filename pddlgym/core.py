@@ -455,11 +455,12 @@ class PDDLEnv(gym.Env):
             expect_action_preds=(not operators_as_actions),
             operators_as_actions=operators_as_actions)
         problems = []
-        problem_files = [f for f in glob.glob(os.path.join(problem_dir, "*.pddl"))]
-        for problem_file in sorted(problem_files):
-            problem = PDDLProblemParser(problem_file, domain.domain_name, 
-                domain.types, domain.predicates, domain.actions, domain.constants)
-            problems.append(problem)
+        if problem_dir is not None:
+            problem_files = [f for f in glob.glob(os.path.join(problem_dir, "*.pddl"))]
+            for problem_file in sorted(problem_files):
+                problem = PDDLProblemParser(problem_file, domain.domain_name, 
+                    domain.types, domain.predicates, domain.actions, domain.constants)
+                problems.append(problem)
         return domain, problems
 
     @property
@@ -473,7 +474,10 @@ class PDDLEnv(gym.Env):
     @property
     def problem_idx(self):
         return self._problem_idx
-    
+
+    @property
+    def problem(self):
+        return self._problem
 
     def set_state(self, state):
         self._state = state
@@ -500,6 +504,13 @@ class PDDLEnv(gym.Env):
         """
         self._problem_idx = problem_idx
         self._problem_index_fixed = True
+
+    def fix_problem(self, problem_file):
+        domain = self.domain
+        problem = PDDLProblemParser(problem_file, domain.domain_name, 
+                    domain.types, domain.predicates, domain.actions, domain.constants)
+        self.problems = [problem]
+        self.fix_problem_index(0)
 
     def reset(self):
         """
@@ -569,6 +580,7 @@ class PDDLEnv(gym.Env):
         debug_info : dict
             See self._get_debug_info.
         """
+        t1 = time.time()
         state, reward, done, debug_info = self.sample_transition(action)
         self.set_state(state)
         self._timestep += 1
