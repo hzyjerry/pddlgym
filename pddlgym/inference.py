@@ -12,7 +12,8 @@ import functools
 def find_satisfying_assignments(kb, conds, variable_sort_fn=None, verbose=False, 
                                 max_assignment_count=2, type_to_parent_types=None,
                                 allow_redundant_variables=True, constants=None,
-                                mode="csp", init_assignments=None):
+                                mode="csp", init_assignments=None,
+                                assigned_variables=None):
     if mode == "csp":
         return ProofSearchTree(kb,
             allow_redundant_variables=allow_redundant_variables,
@@ -22,6 +23,7 @@ def find_satisfying_assignments(kb, conds, variable_sort_fn=None, verbose=False,
             ).prove(list(conds), 
             max_assignment_count=max_assignment_count, 
             variable_sort_fn=variable_sort_fn,
+            assigned_variables=assigned_variables,
             verbose=verbose)
     if mode == "ground":
         return run_ground_inference(kb, conds,
@@ -166,7 +168,9 @@ class ProofSearchTree(object):
         return d
 
     def prove(self, goal_literal, verbose=False, commit_if_true=False, max_assignment_count=1,
-              variable_sort_fn=None):
+              variable_sort_fn=None, assigned_variables=None):
+        # verbose = True
+
         if not isinstance(goal_literal, list):
             goal_literals = [goal_literal]
         else:
@@ -203,8 +207,20 @@ class ProofSearchTree(object):
         if verbose:
             print('variables:', variables)
 
+        cnumber = 0
         while len(self.queue) > 0:
             node = self.queue.pop()
+
+            # Prune by checking if agree with assigned variables
+            if assigned_variables is not None:
+                node_vals = list(node['variable_assignments'].values())
+                node_types = [v.var_type for v in node_vals]
+                prune = False
+                for v in assigned_variables:
+                    if v.var_type in node_types and v not in node_vals:
+                        prune = True
+                if prune: 
+                    continue
 
             if verbose:
                 print('parent:', node['variable_assignments'])
@@ -212,7 +228,6 @@ class ProofSearchTree(object):
             if set(variables) <= set(node['variable_assignments']):
                 if verbose:
                     print("Done:", set(variables), set(node['variable_assignments']))
-
                 all_assignments.append(node['variable_assignments'].copy())
 
                 if len(all_assignments) >= max_assignment_count:
@@ -223,14 +238,25 @@ class ProofSearchTree(object):
             for child in self.get_children(node, variables, goal_literals, verbose=verbose):
                 if verbose:
                     print(' child:', child['variable_assignments'])
+                # Prune by checking if agree with assigned variables
+                if assigned_variables is not None:
+                    child_vals = child['variable_assignments'].values()
+                    child_types = [v.var_type for v in child_vals]
+                    prune = False
+                    for v in assigned_variables:
+                        if v.var_type in child_types and v not in child_vals:
+                            prune = True
+                    if prune: 
+                        continue
                 # Forward checking.
                 if any(not self.get_possible_assignments(
                         var, child["variable_assignments"], goal_literals)
                        for var in variables
                        if var not in child["variable_assignments"]):
                     continue
+                cnumber += 1
                 self.queue.append(child)
-
+        
         return all_assignments
 
     def commit_goal(self, goal_literal):

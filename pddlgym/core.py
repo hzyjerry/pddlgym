@@ -120,10 +120,11 @@ def _select_operator(state, action, domain, inference_mode="infer",
         # Knowledge base: literals in the state + action taken
         kb = set(state.literals) | set(action.literals)
 
-
     selected_operator = None
     assignment = None
     for operator in possible_operators:
+        t1 = time.time()
+
         if isinstance(operator.preconds, Literal):
             conds = [operator.preconds]
         else:
@@ -153,6 +154,32 @@ def _select_operator(state, action, domain, inference_mode="infer",
                 mode=inference_mode)
             return outputs
 
+        # Check whether action is in the preconditions
+        def _filter_by_multi_action_predicates(inputs, literals):
+            action
+            operator
+            action_literal = None
+            all_action_variables = []
+            given_predicates = [l.predicate for l in literals]
+            for lit in conds: 
+                if lit.predicate in given_predicates:
+                    action_literal = lit
+                    all_action_variables += lit.variables
+            def variable_sort_fn(v):
+                return (not v in all_action_variables, v)
+            assigned_variables = [] # Given assignments, help prune search
+            for l in literals:
+                assigned_variables += l.variables
+            outputs = find_satisfying_assignments(inputs, conds,
+                variable_sort_fn=variable_sort_fn,
+                type_to_parent_types=domain.type_to_parent_types,
+                max_assignment_count=999,
+                constants=domain.constants,
+                mode=inference_mode,
+                assigned_variables=assigned_variables
+            )
+            return outputs
+
         # Handle literal conjunctions
         if single_agent:
             assignments = _filter_by_action_predicate(kb, action.predicate)
@@ -162,16 +189,11 @@ def _select_operator(state, action, domain, inference_mode="infer",
 
             # There are multiple literals, we need to find the 1 assignment(s) jointly selected by all literals
             all_lit_assignments = []
-            for act_lit in action.literals:
-                all_lit_assignments.append(_filter_by_action_predicate(kb, act_lit.predicate))
-            assignments = []
-            for temp_assign in all_lit_assignments[0]:
-                all_selected = False # assign selected by all literals
-                for next_lit_assignments in all_lit_assignments[1:]:
-                    if temp_assign in next_lit_assignments:
-                        all_selected = True
-                if all_selected:
-                    assignments.append(temp_assign)
+            assignments = _filter_by_multi_action_predicates(kb, action.literals)
+
+        # print(f"Step 2.1 time {time.time() - t1:.3f}")
+        t1 = time.time()
+
         # Ensure that assignment satisfy literals
         def _filter_by_action_variables(assignments, literals):
             out_assignments = []
@@ -199,9 +221,10 @@ def _select_operator(state, action, domain, inference_mode="infer",
             selected_operator = operator
             assignment = assignments[0]
             break
-            
-    # if assignment is None:
-    #     import pdb; pdb.set_trace()
+
+        # print(f"Step 2.2 time {time.time() - t1:.3f}")
+        t1 = time.time()
+    
     return selected_operator, assignment
 
 def _check_all_action_variables(assignments, action):
