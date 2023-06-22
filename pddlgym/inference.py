@@ -9,7 +9,7 @@ from pddlgym.utils import get_object_combinations
 import functools
 
 
-def find_satisfying_assignments(kb, conds, variable_sort_fn=None, verbose=False, 
+def find_satisfying_assignments(kb, conds, variable_sort_fn=None, verbose=False,
                                 max_assignment_count=2, type_to_parent_types=None,
                                 allow_redundant_variables=True, constants=None,
                                 mode="csp", init_assignments=None,
@@ -20,8 +20,8 @@ def find_satisfying_assignments(kb, conds, variable_sort_fn=None, verbose=False,
             type_to_parent_types=type_to_parent_types,
             constants=constants,
             initial_assignments=init_assignments,
-            ).prove(list(conds), 
-            max_assignment_count=max_assignment_count, 
+            ).prove(list(conds),
+            max_assignment_count=max_assignment_count,
             variable_sort_fn=variable_sort_fn,
             assigned_variables=assigned_variables,
             verbose=verbose)
@@ -219,7 +219,7 @@ class ProofSearchTree(object):
                 for v in assigned_variables:
                     if v.var_type in node_types and v not in node_vals:
                         prune = True
-                if prune: 
+                if prune:
                     continue
 
             if verbose:
@@ -246,7 +246,7 @@ class ProofSearchTree(object):
                     for v in assigned_variables:
                         if v.var_type in child_types and v not in child_vals:
                             prune = True
-                    if prune: 
+                    if prune:
                         continue
                 # Forward checking.
                 if any(not self.get_possible_assignments(
@@ -256,7 +256,7 @@ class ProofSearchTree(object):
                     continue
                 cnumber += 1
                 self.queue.append(child)
-        
+
         return all_assignments
 
     def commit_goal(self, goal_literal):
@@ -278,7 +278,7 @@ class ProofSearchTree(object):
         if next_variable is None:
             return
 
-        for possible_assignment in self.get_possible_assignments(next_variable, 
+        for possible_assignment in self.get_possible_assignments(next_variable,
             node['variable_assignments'], goal_literals, verbose=verbose):
             yield self.create_child_node(next_variable, possible_assignment, node, goal_literals)
 

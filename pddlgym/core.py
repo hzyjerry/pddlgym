@@ -36,7 +36,7 @@ class InvalidAction(Exception):
     """See PDDLEnv docstring"""
     pass
 
-def get_successor_state(state, action, domain, raise_error_on_invalid_action=False, 
+def get_successor_state(state, action, domain, raise_error_on_invalid_action=False,
                         inference_mode="infer", require_unique_assignment=True, get_all_transitions=False, return_probs=False):
     """
     Compute successor state(s) using operators in the domain
@@ -56,8 +56,8 @@ def get_successor_state(state, action, domain, raise_error_on_invalid_action=Fal
     -------
     next_state : State
     """
-    selected_operator, assignment = _select_operator(state, action, domain, 
-        inference_mode=inference_mode, 
+    selected_operator, assignment = _select_operator(state, action, domain,
+        inference_mode=inference_mode,
         require_unique_assignment=require_unique_assignment)
 
     # A ground operator was found; execute the ground effects
@@ -138,7 +138,7 @@ def _select_operator(state, action, domain, inference_mode="infer",
             action
             operator
             action_literal = None
-            for lit in conds: 
+            for lit in conds:
                 if lit.predicate == predicate:
                     action_literal = lit
                     break
@@ -161,7 +161,7 @@ def _select_operator(state, action, domain, inference_mode="infer",
             action_literal = None
             all_action_variables = []
             given_predicates = [l.predicate for l in literals]
-            for lit in conds: 
+            for lit in conds:
                 if lit.predicate in given_predicates:
                     action_literal = lit
                     all_action_variables += lit.variables
@@ -224,7 +224,7 @@ def _select_operator(state, action, domain, inference_mode="infer",
 
         # print(f"Step 2.2 time {time.time() - t1:.3f}")
         t1 = time.time()
-    
+
     return selected_operator, assignment
 
 def _check_all_action_variables(assignments, action):
@@ -474,14 +474,14 @@ class PDDLEnv(gym.Env):
         domain : PDDLDomainParser
         problems : [ PDDLProblemParser ]
         """
-        domain = PDDLDomainParser(domain_file, 
+        domain = PDDLDomainParser(domain_file,
             expect_action_preds=(not operators_as_actions),
             operators_as_actions=operators_as_actions)
         problems = []
         if problem_dir is not None:
             problem_files = [f for f in glob.glob(os.path.join(problem_dir, "*.pddl"))]
             for problem_file in sorted(problem_files):
-                problem = PDDLProblemParser(problem_file, domain.domain_name, 
+                problem = PDDLProblemParser(problem_file, domain.domain_name,
                     domain.types, domain.predicates, domain.actions, domain.constants)
                 problems.append(problem)
         return domain, problems
@@ -530,7 +530,7 @@ class PDDLEnv(gym.Env):
 
     def fix_problem(self, problem_file):
         domain = self.domain
-        problem = PDDLProblemParser(problem_file, domain.domain_name, 
+        problem = PDDLProblemParser(problem_file, domain.domain_name,
                     domain.types, domain.predicates, domain.actions, domain.constants)
         self.problems = [problem]
         self.fix_problem_index(0)
@@ -580,7 +580,7 @@ class PDDLEnv(gym.Env):
         """
         Execute an action and update the state.
 
-        Tries to find a ground operator for which the 
+        Tries to find a ground operator for which the
         preconditions hold when this action is taken. If none
         exist, optionally raises InvalidAction. If multiple
         exist, raises an AssertionError, since we assume
@@ -604,8 +604,12 @@ class PDDLEnv(gym.Env):
             See self._get_debug_info.
         """
         t1 = time.time()
-        state, reward, done, debug_info = self.sample_transition(action)
-        self.set_state(state)
+        reward, done, debug_info = 0, False, None
+        for acs in action:
+            state, rew, d, debug_info = self.sample_transition(acs)
+            self.set_state(state)
+            reward += rew
+            done = done or d
         self._timestep += 1
         if self._max_timestep > 0:
             done = done or self._timestep >= self._max_timestep
@@ -623,10 +627,13 @@ class PDDLEnv(gym.Env):
         return state, reward, done, debug_info
 
     def sample_transition(self, action):
-        state = self._get_successor_state(self._state, action, self.domain,
-                                          inference_mode=self._inference_mode,
-                                          raise_error_on_invalid_action=self._raise_error_on_invalid_action)
-        return self._get_new_state_info(state)
+        if action is None:
+            return self._get_new_state_info(self._state)
+        else:
+            state = self._get_successor_state(self._state, action, self.domain,
+                                              inference_mode=self._inference_mode,
+                                              raise_error_on_invalid_action=self._raise_error_on_invalid_action)
+            return self._get_new_state_info(state)
 
     def _get_successor_state(self, *args, **kwargs):
         """Separated out to allow for overrides in subclasses
@@ -663,7 +670,7 @@ class PDDLEnv(gym.Env):
         return check_goal(state, self._goal)
 
     def _action_valid_test(self, state, action):
-        _, assignment = _select_operator(state, action, self.domain, 
+        _, assignment = _select_operator(state, action, self.domain,
             inference_mode=self._inference_mode)
         return assignment is not None
 
@@ -686,7 +693,7 @@ class PDDLEnv(gym.Env):
         for lit in all_ground_literals:
             if not lit.predicate.is_derived and lit not in state_literals:
                 state_literals = {lit.negative} | state_literals
-        
+
 
         while True:  # loop, because derived predicates can be recursive
             new_derived_literals = set()
