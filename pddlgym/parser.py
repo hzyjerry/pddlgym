@@ -107,7 +107,7 @@ class PDDLParser:
         assert string[-1] == ")"
         if string.startswith("(and") and string[4] in (" ", "\n", "(", ")"):
             clauses = self._find_all_balanced_expressions(string[4:-1].strip())
-            return LiteralConjunction([self._parse_into_literal(clause, params, 
+            return LiteralConjunction([self._parse_into_literal(clause, params,
                                        is_effect=is_effect) for clause in clauses])
         if string.startswith("(or") and string[3] in (" ", "\n", "(", ")"):
             clauses = self._find_all_balanced_expressions(string[3:-1].strip())
@@ -144,7 +144,7 @@ class PDDLParser:
                 # Handle existential goal with no arguments.
                 body = self._parse_into_literal(clause, params, is_effect=is_effect)
                 return body
-            variables = self.parse_objects(new_binding[1:-1], self.types, 
+            variables = self.parse_objects(new_binding[1:-1], self.types,
                 uses_typing=self.uses_typing)
             if isinstance(params, list):
                 for v in variables:
@@ -313,8 +313,8 @@ class PDDLParser:
 class PDDLDomain:
     """A PDDL domain.
     """
-    def __init__(self, domain_name=None, types=None, type_hierarchy=None, predicates=None, 
-                 operators=None, actions=None, constants=None, operators_as_actions=False, 
+    def __init__(self, domain_name=None, types=None, type_hierarchy=None, predicates=None,
+                 operators=None, actions=None, constants=None, operators_as_actions=False,
                  is_probabilistic=False):
         # String of domain name.
         self.domain_name = domain_name
@@ -545,7 +545,7 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
         if constants == "":
             self.constants = []
         else:
-            self.constants = PDDLProblemParser.parse_objects(constants, self.types, 
+            self.constants = PDDLProblemParser.parse_objects(constants, self.types,
                 uses_typing=self.uses_typing)
 
     def _parse_domain_predicates(self):
@@ -624,7 +624,7 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
 class PDDLProblemParser(PDDLParser):
     """PDDL problem parsing class.
     """
-    def __init__(self, problem_fname, domain_name, types, predicates, action_names, constants=None):
+    def __init__(self, problem_fname, domain_name, types, predicates, action_names, constants=None, problem_str=None):
         self.problem_fname = problem_fname
         self.domain_name = domain_name
         self.types = types
@@ -642,8 +642,12 @@ class PDDLProblemParser(PDDLParser):
         self.goal = None
 
         ## Read files.
-        with open(problem_fname, "r") as f:
-            self.problem = f.read().lower()
+        if problem_fname is not None:
+            with open(problem_fname, "r") as f:
+                self.problem = f.read().lower()
+        else:
+            assert problem_str is not None
+            self.problem = problem_str.lower()
         self.problem = self._purge_comments(self.problem)
         assert ";" not in self.problem
 
@@ -667,7 +671,7 @@ class PDDLProblemParser(PDDLParser):
         if objects == "":
             self.objects = []
         else:
-            self.objects = self.parse_objects(objects, self.types, 
+            self.objects = self.parse_objects(objects, self.types,
                 uses_typing=self.uses_typing)
         # Add constants to objects
         self.objects += self.constants
@@ -735,6 +739,28 @@ class PDDLProblemParser(PDDLParser):
         except AttributeError:
             with open(file_or_filepath, 'w') as f:
                 f.write(problem_str)
+
+    def to_str(self, objects=None, initial_state=None, problem_name=None,
+              domain_name=None, goal=None, fast_downward_order=False):
+        if objects is None:
+            objects = self.objects
+        if initial_state is None:
+            initial_state = self.initial_state
+        if problem_name is None:
+            problem_name = self.problem_name
+        if domain_name is None:
+            domain_name = self.domain_name
+        if goal is None:
+            goal = self.goal
+        problem_str = PDDLProblemParser.pddl_string(
+            objects=objects,
+            initial_state=initial_state,
+            problem_name=problem_name,
+            domain_name=domain_name,
+            goal=goal,
+            fast_downward_order=fast_downward_order,
+        )
+        return problem_str
 
     def write(self, file_or_filepath, objects=None, initial_state=None, problem_name=None,
               domain_name=None, goal=None, fast_downward_order=False):

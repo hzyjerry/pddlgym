@@ -530,8 +530,15 @@ class PDDLEnv(gym.Env):
 
     def fix_problem(self, problem_file):
         domain = self.domain
-        problem = PDDLProblemParser(problem_file, domain.domain_name,
-                    domain.types, domain.predicates, domain.actions, domain.constants)
+        problem = PDDLProblemParser(problem_file, domain.domain_name, domain.types,
+            domain.predicates, domain.actions, domain.constants)
+        self.problems = [problem]
+        self.fix_problem_index(0)
+
+    def fix_problem_str(self, problem_str):
+        domain = self.domain
+        problem = PDDLProblemParser(None, domain.domain_name, domain.types,
+            domain.predicates, domain.actions, domain.constants, problem_str=problem_str)
         self.problems = [problem]
         self.fix_problem_index(0)
 
