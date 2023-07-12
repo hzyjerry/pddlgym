@@ -36,7 +36,7 @@ def get_values(obs, name):
             values.append(lit.variables)
     return values
 
-def build_layout(obs):
+def build_layout(obs, goal=None):
     # Get location boundaries
     max_r, max_c = -np.inf, -np.inf
     for lit in obs:
@@ -60,11 +60,12 @@ def build_layout(obs):
 
     for r, c in get_locations(obs, 'stone'):
         if (r, c) in goal_locs:
+            # import pdb; pdb.set_trace()
             layout[r, c] = STONE_AT_GOAL
         else:
             layout[r, c] = STONE
         seen_locs.add((r, c))
-        
+
     for r, c in get_locations(obs, 'player-01'):
         layout[r, c] = PLAYER1
         seen_locs.add((r, c))
@@ -93,12 +94,9 @@ def build_layout(obs):
     # r-c flip
     layout = np.transpose(layout)
 
-    # print("layout:")
-    # print(layout)
-    # import ipdb; ipdb.set_trace()
     return layout
 
-def build_layout_egocentric(obs,size=5):
+def build_layout_egocentric(obs,size=5, goal=None):
     raise NotImplementedError
     if (size % 2) == 0:
         size += 1
@@ -156,28 +154,25 @@ def build_layout_egocentric(obs,size=5):
     # r-c flip
     layout = np.transpose(layout)
 
-    # print("layout:")
-    # print(layout)
-    # import ipdb; ipdb.set_trace()
     return layout
 
 def get_token_images(obs_cell):
     return [TOKEN_IMAGES[obs_cell]]
 
-def render(obs, mode='human', close=False):
+def render(obs, goal=None, mode='human', close=False):
     if mode == "egocentric":
-        layout = build_layout_egocentric(obs)
+        layout = build_layout_egocentric(obs, goal)
         return render_from_layout(layout, get_token_images)
     elif mode == "human":
-        layout = build_layout(obs)
+        layout = build_layout(obs, goal)
         return render_from_layout(layout, get_token_images)
     elif mode == "egocentric_crisp":
-        layout = build_layout_egocentric(obs)
+        layout = build_layout_egocentric(obs, goal)
         return render_from_layout_crisp(layout, get_token_images)
     elif mode == "human_crisp":
-        layout = build_layout(obs)
+        layout = build_layout(obs, goal)
         return render_from_layout_crisp(layout, get_token_images)
     elif mode == "layout":
-        return build_layout(obs)
+        return build_layout(obs, goal)
     elif mode == "egocentric_layout":
-        return build_layout_egocentric(obs)
+        return build_layout_egocentric(obs, goal)

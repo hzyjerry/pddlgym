@@ -401,9 +401,10 @@ class PDDLEnv(gym.Env):
         include only valid actions (must match operator preconditions).
     """
     def __init__(self, domain_file, problem_dir, render=None, seed=0,
-                 handle_derived_literals=True,
+                 handle_derived_literals=False, # Modified
+                 num_players=1,
                  raise_error_on_invalid_action=False,
-                 operators_as_actions=False,
+                 operators_as_actions=True, # Modified
                  dynamic_action_space=False,
                  max_timestep=-1):
         self._state = None
@@ -414,6 +415,9 @@ class PDDLEnv(gym.Env):
         self._raise_error_on_invalid_action = raise_error_on_invalid_action
         self.operators_as_actions = operators_as_actions
         self.handle_derived_literals = handle_derived_literals
+
+        # Number of players:
+        self._num_players = num_players
 
         # Set by self.fix_problem_index
         self._problem_index_fixed = False
@@ -615,7 +619,8 @@ class PDDLEnv(gym.Env):
         for acs in action:
             state, rew, d, debug_info = self.sample_transition(acs)
             self.set_state(state)
-            reward += rew
+            # i.e. goal -> AND[at-goal(stone-01:thing,pos-2-4:location), at-goal(stone-02:thing,pos-4-2:location)]
+            reward = min(reward + rew, 1)
             done = done or d
         self._timestep += 1
         if self._max_timestep > 0:
@@ -683,7 +688,7 @@ class PDDLEnv(gym.Env):
 
     def render(self, *args, **kwargs):
         if self._render:
-            return self._render(self._state.literals, *args, **kwargs)
+            return self._render(self._state.literals, *args, goal=self._problem.goal, **kwargs)
 
     def _handle_derived_literals(self, state):
         # first remove any old derived literals since they're outdated
